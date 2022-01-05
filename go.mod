@@ -11,7 +11,7 @@ require (
 	github.com/xtaci/smux v1.5.16
 	github.com/xtls/xray-core v1.5.2
 	go.uber.org/atomic v1.9.0
-	go.uber.org/zap v1.19.1
+	go.uber.org/zap v1.20.0
 )
 
 require (
