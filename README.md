@@ -35,6 +35,9 @@ go get -u "github.com/Ehco1996/ehco/cmd/ehco"
 ### docker image
 
  `docker pull ehco1996/ehco`
+ 
+ docker run -d --net=host ehco1996/ehco -l 0.0.0.0:12025 -lt wss -r 0.0.0.0:12021
+
 
 ## 主要功能
 
