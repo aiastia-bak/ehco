@@ -104,7 +104,7 @@ func createCliAPP() *cli.App {
 		},
 		&cli.IntFlag{
 			Name:        "web_port",
-			Usage:       "promtheus web expoter 的监听端口",
+			Usage:       "prometheus web expoter 的监听端口",
 			EnvVars:     []string{"EHCO_WEB_PORT"},
 			Value:       0,
 			Destination: &WebPort,
@@ -253,7 +253,7 @@ func watchAndReloadConfig(ctx context.Context, relayM *sync.Map, errCh chan erro
 			logger.Info("[cfg] Got A HUP Signal! Now Reloading Conf")
 			newCfg, err := loadConfig()
 			if err != nil {
-				logger.Errorf("[cfg] Reloading Conf meet error: %s ", err)
+				logger.Fatalf("[cfg] Reloading Conf meet error: %s ", err)
 			}
 
 			var newRelayAddrList []string
@@ -308,18 +308,21 @@ func start(ctx *cli.Context) error {
 	if cfg.WebPort > 0 {
 		go func() {
 			logger.Fatalf("[web] StartWebServer meet err=%s", web.StartWebServer(cfg))
+			cancel()
 		}()
 	}
 
 	if cfg.XRayConfig != nil && cfg.SyncTrafficEndPoint != "" {
 		go func() {
 			logger.Fatalf("[xray] StartXrayServer meet err=%s", xray.StartXrayServer(mainCtx, cfg))
+			cancel()
 		}()
 	}
 
 	if len(cfg.RelayConfigs) > 0 {
 		go func() {
 			logger.Fatalf("[relay] StartRelayServers meet err=%v", startRelayServers(mainCtx, cfg))
+			cancel()
 		}()
 	}
 
