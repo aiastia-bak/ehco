@@ -11,7 +11,6 @@ import (
 	"github.com/Ehco1996/ehco/internal/constant"
 	"github.com/Ehco1996/ehco/internal/relay"
 	"github.com/Ehco1996/ehco/internal/tls"
-
 	"github.com/Ehco1996/ehco/pkg/log"
 )
 
@@ -33,15 +32,19 @@ const (
 	MWSS_LISTEN = "0.0.0.0:1237"
 	MWSS_REMOTE = "wss://0.0.0.0:2002"
 	MWSS_SERVER = "0.0.0.0:2002"
+
+	MTCP_LISTEN = "0.0.0.0:1238"
+	MTCP_REMOTE = "0.0.0.0:2003"
+	MTCP_SERVER = "0.0.0.0:2003"
 )
 
 func init() {
-	_ = log.InitLogger("info")
+	_ = log.InitGlobalLogger("info")
 	// Start the new echo server.
 	go RunEchoServer(ECHO_HOST, ECHO_PORT)
 
-	// init tls
-	tls.InitTlsCfg()
+	// init tls,make linter happy
+	_ = tls.InitTlsCfg()
 
 	cfg := config.Config{
 		PATH: "",
@@ -96,6 +99,20 @@ func init() {
 				TCPRemotes:    []string{ECHO_SERVER},
 				TransportType: constant.Transport_RAW,
 			},
+
+			// mtcp
+			{
+				Listen:        MTCP_LISTEN,
+				ListenType:    constant.Listen_RAW,
+				TCPRemotes:    []string{MTCP_REMOTE},
+				TransportType: constant.Transport_MTCP,
+			},
+			{
+				Listen:        MTCP_SERVER,
+				ListenType:    constant.Listen_MTCP,
+				TCPRemotes:    []string{ECHO_SERVER},
+				TransportType: constant.Transport_RAW,
+			},
 		},
 	}
 
@@ -106,9 +123,9 @@ func init() {
 		go func(ctx context.Context, c config.RelayConfig) {
 			r, err := relay.NewRelay(&c)
 			if err != nil {
-				log.InfoLogger.Fatal(err)
+				log.Logger.Fatal(err)
 			}
-			log.InfoLogger.Fatal(r.ListenAndServe())
+			log.Logger.Fatal(r.ListenAndServe())
 		}(ctx, c)
 	}
 
@@ -139,11 +156,11 @@ func TestRelayWithDeadline(t *testing.T) {
 	msg := []byte("hello")
 	conn, err := net.Dial("tcp", RAW_LISTEN)
 	if err != nil {
-		log.InfoLogger.Fatal(err)
+		log.Logger.Fatal(err)
 	}
 	defer conn.Close()
 	if _, err := conn.Write(msg); err != nil {
-		log.InfoLogger.Fatal(err)
+		log.Logger.Fatal(err)
 	}
 
 	buf := make([]byte, len(msg))
@@ -151,7 +168,7 @@ func TestRelayWithDeadline(t *testing.T) {
 	time.Sleep(constant.IdleTimeOut)
 	_, err = conn.Read(buf)
 	if err != nil {
-		log.InfoLogger.Fatal("need error here")
+		log.Logger.Fatal("need error here")
 	}
 }
 
@@ -178,7 +195,7 @@ func TestRelayOverWss(t *testing.T) {
 func TestRelayOverMwss(t *testing.T) {
 	msg := []byte("hello")
 	var wg sync.WaitGroup
-	testCnt := 50
+	testCnt := 10
 	wg.Add(testCnt)
 	for i := 0; i < testCnt; i++ {
 		go func(i int) {
@@ -193,6 +210,27 @@ func TestRelayOverMwss(t *testing.T) {
 	}
 	wg.Wait()
 	t.Log("test tcp over mwss done!")
+}
+
+func TestRelayOverMTCP(t *testing.T) {
+	msg := []byte("hello")
+	var wg sync.WaitGroup
+
+	testCnt := 5
+	wg.Add(testCnt)
+	for i := 0; i < testCnt; i++ {
+		go func(i int) {
+			t.Logf("run no: %d test.", i)
+			res := SendTcpMsg(msg, MTCP_LISTEN)
+			wg.Done()
+			if string(res) != string(msg) {
+				t.Log(res)
+				panic(1)
+			}
+		}(i)
+	}
+	wg.Wait()
+	t.Log("test tcp over mtcp done!")
 }
 
 func BenchmarkTcpRelay(b *testing.B) {

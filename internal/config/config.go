@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/Ehco1996/ehco/internal/constant"
-	"github.com/Ehco1996/ehco/pkg/log"
 	"github.com/xtls/xray-core/infra/conf"
 )
 
@@ -27,6 +26,7 @@ func (r *RelayConfig) Validate() error {
 	if r.ListenType != constant.Listen_RAW &&
 		r.ListenType != constant.Listen_WS &&
 		r.ListenType != constant.Listen_WSS &&
+		r.ListenType != constant.Listen_MTCP &&
 		r.ListenType != constant.Listen_MWSS {
 		return fmt.Errorf("invalid listen type:%s", r.ListenType)
 	}
@@ -34,6 +34,7 @@ func (r *RelayConfig) Validate() error {
 	if r.TransportType != constant.Transport_RAW &&
 		r.TransportType != constant.Transport_WS &&
 		r.TransportType != constant.Transport_WSS &&
+		r.TransportType != constant.Transport_MTCP &&
 		r.TransportType != constant.Transport_MWSS {
 		return fmt.Errorf("invalid transport type:%s", r.ListenType)
 	}
@@ -99,7 +100,7 @@ func (c *Config) readFromFile() error {
 	if err != nil {
 		return err
 	}
-	log.InfoLogger.Info("Load Config From file: ", c.PATH)
+	println("Load Config From file:", c.PATH)
 	if err != nil {
 		return err
 	}
@@ -113,7 +114,7 @@ func (c *Config) readFromHttp() error {
 		return err
 	}
 	defer r.Body.Close()
-	log.InfoLogger.Info("Load Config From http:", c.PATH)
+	println("Load Config From http:", c.PATH)
 	return json.NewDecoder(r.Body).Decode(&c)
 }
 
@@ -123,6 +124,9 @@ func (c *Config) Validate() error {
 		if err := r.Validate(); err != nil {
 			return err
 		}
+	}
+	if c.LogLeveL == "" {
+		c.LogLeveL = "info"
 	}
 	return nil
 }
