@@ -3,55 +3,49 @@ package transporter
 import (
 	"context"
 	"net"
+	"time"
 
 	"github.com/Ehco1996/ehco/internal/lb"
+	"github.com/Ehco1996/ehco/internal/web"
 	"github.com/xtaci/smux"
 	"go.uber.org/zap"
 )
 
 type MTCP struct {
-	raw *Raw
+	*Raw
 	mtp *smuxTransporter
-}
-
-func (s *MTCP) GetOrCreateBufferCh(uaddr *net.UDPAddr) *BufferCh {
-	return s.raw.GetOrCreateBufferCh(uaddr)
-}
-
-func (s *MTCP) HandleUDPConn(uaddr *net.UDPAddr, local *net.UDPConn) {
-	s.raw.HandleUDPConn(uaddr, local)
 }
 
 func (s *MTCP) HandleTCPConn(c net.Conn, remote *lb.Node) error {
 	defer c.Close()
+	t1 := time.Now()
 	mwsc, err := s.mtp.Dial(context.TODO(), remote.Address)
+	web.HandShakeDuration.WithLabelValues(remote.Label).Observe(float64(time.Since(t1).Milliseconds()))
 	if err != nil {
 		return err
 	}
 	defer mwsc.Close()
-	s.raw.L.Infof("HandleTCPConn from:%s to:%s", c.RemoteAddr(), remote.Address)
+	s.L.Infof("HandleTCPConn from:%s to:%s", c.RemoteAddr(), remote.Address)
 	return transport(c, mwsc, remote.Label)
 }
 
-func (s *MTCP) GetRemote() *lb.Node {
-	return s.raw.GetRemote()
-}
-
 type MTCPServer struct {
-	listenAddr *net.TCPAddr
-	listener   *net.TCPListener
+	raw        *Raw
+	listenAddr string
+	listener   net.Listener
+	L          *zap.SugaredLogger
 
-	ConnChan chan net.Conn
-	ErrChan  chan error
-	L        *zap.SugaredLogger
+	errChan  chan error
+	connChan chan net.Conn
 }
 
-func NewMTCPServer(l *zap.SugaredLogger, listenAddr *net.TCPAddr) *MTCPServer {
+func NewMTCPServer(listenAddr string, raw *Raw, l *zap.SugaredLogger) *MTCPServer {
 	return &MTCPServer{
-		ConnChan:   make(chan net.Conn, 1024),
-		ErrChan:    make(chan error, 1),
 		L:          l,
+		raw:        raw,
 		listenAddr: listenAddr,
+		errChan:    make(chan error, 1),
+		connChan:   make(chan net.Conn, 1024),
 	}
 }
 
@@ -77,7 +71,7 @@ func (s *MTCPServer) mux(conn net.Conn) {
 			break
 		}
 		select {
-		case s.ConnChan <- stream:
+		case s.connChan <- stream:
 		default:
 			stream.Close()
 			s.L.Infof("%s - %s: connection queue is full", conn.RemoteAddr(), conn.LocalAddr())
@@ -87,29 +81,43 @@ func (s *MTCPServer) mux(conn net.Conn) {
 
 func (s *MTCPServer) Accept() (conn net.Conn, err error) {
 	select {
-	case conn = <-s.ConnChan:
-	case err = <-s.ErrChan:
+	case conn = <-s.connChan:
+	case err = <-s.errChan:
 	}
 	return
 }
 
-func (s *MTCPServer) ListenAndServe() {
-	lis, err := net.ListenTCP("tcp", s.listenAddr)
+func (s *MTCPServer) ListenAndServe() error {
+	lis, err := net.Listen("tcp", s.listenAddr)
 	if err != nil {
-		s.ErrChan <- err
-		return
+		return err
 	}
 	s.listener = lis
-	for {
-		c, err := lis.AcceptTCP()
-		if err != nil {
-			s.ErrChan <- err
-			continue
+
+	go func() {
+		for {
+			c, err := lis.Accept()
+			if err != nil {
+				s.errChan <- err
+				continue
+			}
+			go s.mux(c)
 		}
+	}()
 
-		go s.mux(c)
+	for {
+		conn, e := s.Accept()
+		if e != nil {
+			return e
+		}
+		go func(c net.Conn) {
+			defer c.Close()
+			remote := s.raw.GetRemote()
+			if err := s.raw.HandleTCPConn(c, remote); err != nil {
+				s.L.Errorf("HandleTCPConn meet error from:%s to:%s err:%s", c.RemoteAddr(), remote.Address, err)
+			}
+		}(conn)
 	}
-
 }
 
 func (s *MTCPServer) Close() error {

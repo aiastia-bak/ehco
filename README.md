@@ -18,10 +18,6 @@ ehco is a network relay tool and a typo :)
 
 ## 安装
 
-### brew
-
- `brew install ehco`
-
 ### go get
 
 ```bash
@@ -188,7 +184,7 @@ iperf3 -c 0.0.0.0 -p 1234 -u -b 1G --length 1024
 
 ```
 
-| iperf | raw | relay(raw) | relay(ws) |relay(wss) | relay(mwss)|
-| ---- | ----  | ---- | ---- | ---- | ---- |
-| tcp  | 123 Gbits/sec | 55 Gbits/sec | 41 Gbits/sec | 10 Gbits/sec | 5.78 Gbits/sec |
-| udp  | 14.5 Gbits/sec | 3.3 Gbits/sec | 直接转发 | 直接转发 | 直接转发 |
+| iperf | raw | relay(raw) | relay(ws) |relay(wss) | relay(mwss) | relay(mtcp) |
+| ---- | ----  | ---- | ---- | ---- | ---- | ---- |
+| tcp  | 123 Gbits/sec | 55 Gbits/sec | 41 Gbits/sec | 10 Gbits/sec | 5.78 Gbits/sec | 22.2 Gbits/sec |
+| udp  | 14.5 Gbits/sec | 3.3 Gbits/sec | 直接转发 | 直接转发 | 直接转发 | 直接转发 |

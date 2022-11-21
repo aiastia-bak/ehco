@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/Ehco1996/ehco/internal/constant"
-	"github.com/Ehco1996/ehco/internal/web"
 	"github.com/xtaci/smux"
 	"go.uber.org/zap"
 )
@@ -52,10 +51,9 @@ func (tr *smuxTransporter) gc() {
 	for range tr.gcTicker.C {
 		tr.sessionMutex.Lock()
 		for addr, sl := range tr.sessionM {
-			tr.L.Debugf("==== start doing gc for remote addr: %s total session count %d ====", addr, len(sl))
+			tr.L.Debugf("start doing gc for remote addr: %s total session count %d", addr, len(sl))
 			for idx := range sl {
 				sm := sl[idx]
-				tr.L.Debugf("check session: %s current stream count %d", sm.session.LocalAddr().String(), sm.session.NumStreams())
 				if sm.session.NumStreams() == 0 {
 					sm.session.Close()
 					tr.L.Debugf("close idle session:%s", sm.session.LocalAddr().String())
@@ -68,7 +66,7 @@ func (tr *smuxTransporter) gc() {
 				}
 			}
 			tr.sessionM[addr] = newList
-			tr.L.Debugf("==== finish gc for remote addr: %s total session count %d ====", addr, len(sl))
+			tr.L.Debugf("finish gc for remote addr: %s total session count %d", addr, len(sl))
 		}
 		tr.sessionMutex.Unlock()
 	}
@@ -84,14 +82,14 @@ func (tr *smuxTransporter) Dial(ctx context.Context, addr string) (conn net.Conn
 		if sm.CanNotServe() {
 			continue
 		} else {
-			tr.L.Debugf("use session: %s total stream count: %d", sm.session.RemoteAddr().String(), sm.session.NumStreams())
+			tr.L.Debugf("use session: %s total stream count: %d remote addr: %s",
+				sm.session.LocalAddr().String(), sm.session.NumStreams(), addr)
 			session = sm.session
 			break
 		}
 	}
 
 	// create new one
-	t1 := time.Now()
 	if session == nil {
 		session, err = tr.initSessionF(ctx, addr)
 		if err != nil {
@@ -107,6 +105,5 @@ func (tr *smuxTransporter) Dial(ctx context.Context, addr string) (conn net.Conn
 		session.Close()
 		return nil, err
 	}
-	web.HandShakeDuration.WithLabelValues(addr).Observe(float64(time.Since(t1).Milliseconds()))
 	return stream, nil
 }
